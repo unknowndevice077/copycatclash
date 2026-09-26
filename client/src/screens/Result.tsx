@@ -8,6 +8,7 @@ import { Confetti } from '../components/Confetti';
 import { AnimatedNumber } from '../components/Timers';
 import { ChatBox, EmoteBar, EmoteFloats, ReportButton } from '../components/Social';
 import { buildShareImage, shareOrDownload } from '../lib/share';
+import { isFfa, scoreLine, sideName, sidesOf } from '../lib/sides';
 import { actions } from '../net/actions';
 import { useMatch } from '../store/match';
 import { useSession } from '../store/session';
@@ -54,12 +55,22 @@ export function ResultScreen() {
   const myXp = result.xp[me];
   const title = outcome === 'win' ? 'VICTORY!' : outcome === 'loss' ? 'DEFEAT' : outcome === 'draw' ? 'DRAW!' : 'MATCH OVER';
   const canRematch = closedReason === null && !rematchVotes.includes(me) && !!myTeam;
+  const sides = sidesOf(rules);
+  const ffa = isFfa(rules);
+  const nameOf = (t: TeamId) => sideName(t, rules, players, myTeam);
+  const names = Object.fromEntries(sides.map((t) => [t, nameOf(t)]));
+  // Winner first (they may have won by forfeit with fewer rounds), then by rounds won.
+  const standings = [...sides].sort((a, b) => Number(b === result.winner) - Number(a === result.winner) || result.finalScore[b] - result.finalScore[a]);
 
   const share = async () => {
     if (!round) return;
     setSharing(true);
     try {
-      const blob = await buildShareImage(round, result.finalScore);
+      // Two drawings on the card: both teams, or (free-for-all) yours and the round's best other one.
+      const mine = myTeam ?? sides[0];
+      const rival = [...sides].filter((t) => t !== mine).sort((a, b) => (round.scores[b] ?? 0) - (round.scores[a] ?? 0))[0] ?? sides[1];
+      const pair: [TeamId, TeamId] = sides.length === 2 ? [sides[0], sides[1]] : [mine, rival];
+      const blob = await buildShareImage(round, scoreLine(result.finalScore, sides, myTeam), pair, names);
       const how = await shareOrDownload(blob);
       toast({ kind: 'info', code: 'share', message: how === 'shared' ? 'Shared!' : 'Image downloaded.' }, 2500);
     } catch {
@@ -87,18 +98,30 @@ export function ResultScreen() {
         >
           {title}
         </motion.h1>
-        <div className="mt-3 flex items-center justify-center gap-3 font-display text-3xl">
-          <TeamTag team="A" />
-          {result.finalScore.A} – {result.finalScore.B}
-          <TeamTag team="B" />
-        </div>
+        {ffa ? (
+          <ol className="mx-auto mt-3 flex max-w-2xl flex-wrap items-center justify-center gap-2 font-display text-xl">
+            {standings.map((t, i) => (
+              <li key={t} className="flex items-center gap-1.5">
+                <span className="text-sun">{i + 1}.</span>
+                <TeamTag team={t} size="sm" label={names[t]} />
+                {result.finalScore[t]}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <div className="mt-3 flex items-center justify-center gap-3 font-display text-3xl">
+            <TeamTag team="A" />
+            {result.finalScore.A} – {result.finalScore.B}
+            <TeamTag team="B" />
+          </div>
+        )}
         <p className="mt-1 font-extrabold">
-          {rules ? `${MODE_PRESETS[rules.mode].label} · ${rules.teamSize}` : ''} {result.ranked ? '· Ranked' : '· Unranked'} {result.ghost ? '· vs Ghost (Elo ×0.5)' : ''}
+          {rules ? `${MODE_PRESETS[rules.mode].label} · ${ffa ? 'Free for all' : rules.teamSize}` : ''} {result.ranked ? '· Ranked' : '· Unranked'} {result.ghost ? '· vs Ghost (Elo ×0.5)' : ''}
           {result.forfeit ? ' · won by forfeit' : ''}
         </p>
       </section>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className={`grid gap-4 ${ffa ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
         <section className="paper space-y-2 p-4">
           <h2 className="font-display text-xl">Your progress</h2>
           {myElo && result.ranked ? (
@@ -125,6 +148,7 @@ export function ResultScreen() {
           )}
         </section>
 
+        {!ffa && (
         <section className="paper p-4">
           <h2 className="font-display text-xl">MVP</h2>
           {mvp ? (
@@ -139,11 +163,33 @@ export function ResultScreen() {
             <p className="font-bold">No MVP this time.</p>
           )}
         </section>
+        )}
 
         <section className="paper p-4">
-          <h2 className="font-display text-xl">Contribution</h2>
+          <h2 className="font-display text-xl">{ffa ? 'Rounds won' : 'Contribution'}</h2>
+          {ffa ? (
+            <ul className="mt-2 space-y-1.5">
+              {standings.map((t) => {
+                const p = players.find((x) => x.team === t);
+                const pct = (result.finalScore[t] / Math.max(1, ...sides.map((s) => result.finalScore[s]))) * 100;
+                return (
+                  <li key={t} className="flex items-center gap-2 text-sm font-extrabold">
+                    <span className="w-5 text-center" aria-hidden>
+                      {TEAM_COLORS[t].icon}
+                    </span>
+                    <span className="w-24 truncate">{names[t]}</span>
+                    <div className="h-3 flex-1 overflow-hidden rounded-full border-2 border-ink bg-paperdim">
+                      <div className={`pattern-${t} h-full`} style={{ width: `${pct}%`, backgroundColor: TEAM_COLORS[t].main }} />
+                    </div>
+                    <span className="w-10 text-right">{result.finalScore[t]}</span>
+                    {p && p.id !== me && !p.isGhost && <ReportButton playerId={p.id} name={p.name} />}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
           <ul className="mt-2 space-y-1.5">
-            {(['A', 'B'] as TeamId[]).flatMap((t) =>
+            {sides.flatMap((t) =>
               players
                 .filter((p) => p.team === t)
                 .map((p) => (
@@ -161,6 +207,7 @@ export function ResultScreen() {
                 )),
             )}
           </ul>
+          )}
         </section>
       </div>
 
@@ -176,7 +223,7 @@ export function ResultScreen() {
               onClick={() => setSelected(i)}
               className={`shrink-0 rounded-xl border-3 border-ink p-1 ${i === selected ? 'bg-sun' : 'bg-paperdim'}`}
             >
-              <img src={r.images[myTeam ?? 'A']} alt={`Round ${r.round}`} className="h-16 w-20 rounded-lg object-cover" />
+              <img src={r.images[myTeam ?? sides[0]] ?? r.referenceUrl} alt={`Round ${r.round}`} className="h-16 w-20 rounded-lg object-cover" />
               <span className="block text-xs font-extrabold">
                 R{r.round} {r.winner === 'draw' ? '=' : TEAM_COLORS[r.winner].icon}
               </span>
@@ -189,11 +236,15 @@ export function ResultScreen() {
               <img src={round.referenceUrl} alt={`Reference for round ${round.round}`} className="aspect-[4/3] w-full rounded-xl border-2 border-ink object-cover" />
               <p className="mt-1 font-display">{round.photoTitle}</p>
               <p className="text-sm font-extrabold">
-                A {Math.round(round.scores.A)}% · B {Math.round(round.scores.B)}% {round.estimated ? '· estimated' : ''}
+                {sides
+                  .filter((t) => round.scores[t] !== undefined)
+                  .map((t) => `${ffa ? names[t] : t} ${Math.round(round.scores[t] ?? 0)}%`)
+                  .join(' · ')}{' '}
+                {round.estimated ? '· estimated' : ''}
               </p>
               {showdown && showdown.round === round.round && <AttributionLine a={showdown.attribution} />}
             </div>
-            <ReplayPlayer matchId={matchId} round={round.round} />
+            <ReplayPlayer matchId={matchId} round={round.round} names={ffa ? names : undefined} />
           </div>
         )}
       </section>

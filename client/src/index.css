@@ -80,6 +80,18 @@ body {
   }
 }
 
+/* Free-for-all sides C-E. Kept outside @layer so the dynamic `pattern-${team}` classes are never purged. */
+.pattern-C {
+  background-image: repeating-linear-gradient(-45deg, rgb(20 10 43 / 0.14) 0 6px, transparent 6px 14px);
+}
+.pattern-D {
+  background-image: linear-gradient(rgb(20 10 43 / 0.12) 2px, transparent 2px), linear-gradient(90deg, rgb(20 10 43 / 0.12) 2px, transparent 2px);
+  background-size: 12px 12px;
+}
+.pattern-E {
+  background-image: repeating-linear-gradient(0deg, rgb(255 255 255 / 0.22) 0 4px, transparent 4px 12px);
+}
+
 *:focus-visible {
   outline: 4px solid rgb(var(--c-sun));
   outline-offset: 2px;

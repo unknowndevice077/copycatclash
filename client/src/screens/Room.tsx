@@ -2,6 +2,7 @@ import { useEffect, useState, type ChangeEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   DIFFICULTIES,
+  FFA_MAX_PLAYERS,
   GAME_MODES,
   MODE_PRESETS,
   PHOTO_CATEGORIES,
@@ -9,8 +10,11 @@ import {
   THEME_LABELS,
   ROUNDS_TO_WIN_MAX,
   ROUNDS_TO_WIN_MIN,
+  TEAM_COLORS,
+  TEAM_IDS,
   TEAM_SIZE_COUNT,
   TEAM_SIZES,
+  VERSUS_TEAMS,
   defaultRoomSettings,
   type RoomSettings,
   type TeamId,
@@ -45,7 +49,8 @@ function Check({ label, checked, disabled, onChange }: { label: string; checked:
 function SettingsForm({ settings, isHost }: { settings: RoomSettings; isHost: boolean }) {
   const [draft, setDraft] = useState(settings);
   useEffect(() => setDraft(settings), [settings]);
-  const multi = TEAM_SIZE_COUNT[draft.teamSize] > 1;
+  const ffa = draft.format === 'ffa';
+  const multi = !ffa && TEAM_SIZE_COUNT[draft.teamSize] > 1;
 
   const commit = (patch: Partial<RoomSettings>) => {
     const next = { ...draft, ...patch };
@@ -54,7 +59,7 @@ function SettingsForm({ settings, isHost }: { settings: RoomSettings; isHost: bo
   };
   const applyMode = (mode: RoomSettings['mode']) => {
     const d = defaultRoomSettings(mode, draft.teamSize);
-    commit({ ...d, themes: draft.themes, categories: draft.categories, allowSpectators: draft.allowSpectators, isPrivate: draft.isPrivate, useUploadedPhotos: draft.useUploadedPhotos, roundsToWin: draft.roundsToWin });
+    commit({ ...d, format: draft.format, themes: draft.themes, categories: draft.categories, allowSpectators: draft.allowSpectators, isPrivate: draft.isPrivate, useUploadedPhotos: draft.useUploadedPhotos, roundsToWin: draft.roundsToWin });
   };
   const toggleIn = <T extends string>(list: T[], item: T): T[] => (list.includes(item) ? (list.length > 1 ? list.filter((x) => x !== item) : list) : [...list, item]);
   const num = (e: ChangeEvent<HTMLInputElement>) => Number(e.target.value);
@@ -73,8 +78,14 @@ function SettingsForm({ settings, isHost }: { settings: RoomSettings; isHost: bo
           ))}
         </select>
       </Field>
+      <Field label="Format">
+        <select className="input" value={draft.format} onChange={(e) => commit({ format: e.target.value as RoomSettings['format'] })}>
+          <option value="teams">Teams (pick a side)</option>
+          <option value="ffa">Free for all (up to {FFA_MAX_PLAYERS})</option>
+        </select>
+      </Field>
       <Field label="Team size">
-        <select className="input" value={draft.teamSize} onChange={(e) => commit({ teamSize: e.target.value as RoomSettings['teamSize'] })}>
+        <select className="input" value={ffa ? '1v1' : draft.teamSize} disabled={dis || ffa} onChange={(e) => commit({ teamSize: e.target.value as RoomSettings['teamSize'] })}>
           {TEAM_SIZES.map((t) => (
             <option key={t}>{t}</option>
           ))}
@@ -201,7 +212,10 @@ export function RoomScreen() {
   if (!room) return <main className="grid min-h-full place-items-center font-display text-2xl">Joining room…</main>;
 
   const isHost = room.hostId === me;
-  const cap = TEAM_SIZE_COUNT[room.settings.teamSize];
+  const ffa = room.settings.format === 'ffa';
+  const cap = ffa ? 1 : TEAM_SIZE_COUNT[room.settings.teamSize];
+  const seated = TEAM_IDS.reduce((n, t) => n + room.teams[t].length, 0);
+  const capacity = ffa ? FFA_MAX_PLAYERS : cap * 2;
   const leave = async () => {
     await actions.leaveRoom();
     navigate('/');
@@ -226,8 +240,45 @@ export function RoomScreen() {
       {room.matchId && <p className="rounded-2xl border-3 border-ink bg-mint px-4 py-2 font-extrabold text-ink">A match is in progress in this room.</p>}
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <div className="order-2 min-w-0 space-y-4 lg:order-1">
+          {ffa ? (
+            <section className="paper space-y-2 p-4" aria-label="Free-for-all seats">
+              <div className="flex items-center justify-between">
+                <h2 className="font-display text-xl">Free for all</h2>
+                <span className="font-extrabold">
+                  {seated}/{FFA_MAX_PLAYERS}
+                </span>
+              </div>
+              <p className="text-sm font-bold">Everyone draws their own picture. Best score takes the round.</p>
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {TEAM_IDS.map((t: TeamId) => {
+                  const m = room.teams[t][0];
+                  return (
+                    <li key={t} className="flex min-h-[48px] items-center gap-2 rounded-2xl border-3 border-ink bg-paperdim px-2 py-1.5">
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-ink font-display" style={{ background: TEAM_COLORS[t].main, color: TEAM_COLORS[t].text }} aria-hidden>
+                        {TEAM_COLORS[t].icon}
+                      </span>
+                      {m ? (
+                        <span className="flex min-w-0 flex-1 items-center gap-2 font-extrabold">
+                          <span className={`h-3 w-3 shrink-0 rounded-full border-2 border-ink ${m.online ? 'bg-mint' : 'bg-muted'}`} />
+                          <span className="truncate">{m.name}</span>
+                          {m.id === room.hostId && <span className="chip bg-sun">Host</span>}
+                        </span>
+                      ) : (
+                        <>
+                          <span className="flex-1 font-bold text-muted">Open seat</span>
+                          <button type="button" className="btn-ghost !min-h-[36px] !px-3 text-sm" disabled={!!room.matchId} onClick={() => void actions.setRoomTeam(t)}>
+                            Sit here
+                          </button>
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            {(['A', 'B'] as TeamId[]).map((t) => (
+            {VERSUS_TEAMS.map((t) => (
               <section key={t} className="paper space-y-2 p-4">
                 <div className="flex items-center justify-between">
                   <TeamTag team={t} />
@@ -249,6 +300,7 @@ export function RoomScreen() {
               </section>
             ))}
           </div>
+          )}
           <section className="paper p-4">
             <div className="flex items-center justify-between">
               <h2 className="font-display text-xl">Spectators ({room.spectators.length})</h2>
@@ -261,7 +313,7 @@ export function RoomScreen() {
           <SettingsForm settings={room.settings} isHost={isHost} />
         </div>
         <div className="order-1 min-w-0 space-y-4 lg:order-2">
-          {!room.matchId && room.teams.A.length + room.teams.B.length < cap * 2 && <InvitePanel code={room.code} />}
+          {!room.matchId && seated < capacity && <InvitePanel code={room.code} />}
           {isHost && (
             <button type="button" className="btn-primary w-full py-4 text-3xl" disabled={!!room.matchId} onClick={() => void actions.startRoom()}>
               START MATCH

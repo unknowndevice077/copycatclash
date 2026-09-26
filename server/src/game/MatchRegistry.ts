@@ -91,14 +91,18 @@ export class MatchRegistry {
 
   private rematch(old: Match): void {
     const teams = old.teamSeats();
-    const refreshed: Record<TeamId, Seat[]> = { A: [], B: [] };
-    for (const t of ['A', 'B'] as const) {
-      for (const s of teams[t]) {
-        refreshed[t].push(s.isGhost ? s : (seatFor(this.deps.players, s.id, old.rules.teamSize) ?? s));
+    const ffa = old.rules.format === 'ffa';
+    const refreshed: Partial<Record<TeamId, Seat[]>> = {};
+    for (const t of old.rules.teamIds) {
+      for (const s of teams[t] ?? []) {
+        // In a free-for-all, players who walked away sit the rematch out instead of forfeiting it.
+        if (ffa && !s.isGhost && !this.deps.presence.isOnline(s.id)) continue;
+        (refreshed[t] ??= []).push(s.isGhost ? s : (seatFor(this.deps.players, s.id, old.rules.teamSize) ?? s));
       }
     }
+    const rules = ffa ? { ...old.rules, teamIds: old.rules.teamIds.filter((t) => refreshed[t]?.length) } : old.rules;
     if (old.rules.ghost) {
-      const human = refreshed.A.find((s) => !s.isGhost) ?? refreshed.B.find((s) => !s.isGhost);
+      const human = refreshed.A?.find((s) => !s.isGhost) ?? refreshed.B?.find((s) => !s.isGhost);
       old.close('rematch');
       if (human) {
         const res = this.createGhostMatch(human.id, old.rules.ranked);
@@ -108,7 +112,8 @@ export class MatchRegistry {
     }
     const spectators = old.spectatorIds();
     old.close('rematch');
-    this.create({ rules: old.rules, teams: refreshed, spectatorIds: spectators, roomCode: old.roomCode });
+    if (rules.teamIds.length < 2) return;
+    this.create({ rules, teams: refreshed, spectatorIds: spectators, roomCode: old.roomCode });
   }
 
   private onClosed(match: Match): void {

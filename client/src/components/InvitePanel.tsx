@@ -48,7 +48,7 @@ export function InvitePanel({ code }: { code: string }) {
 
   return (
     <section className="paper flex flex-col items-center gap-2 p-4 text-center" aria-label="Invite a friend">
-      <h2 className="font-display text-xl">Invite your opponent</h2>
+      <h2 className="font-display text-xl">Invite players</h2>
       <p className="text-sm font-bold">Scan with the other phone's camera, or type the code on their Home screen.</p>
       {qr && <img src={qr} alt={`QR code for ${url}`} className="h-48 w-48 rounded-xl border-3 border-ink" />}
       <div className="font-display text-4xl tracking-[0.3em]" aria-label={`Room code ${code.split('').join(' ')}`}>

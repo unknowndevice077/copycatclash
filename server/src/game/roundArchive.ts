@@ -13,11 +13,10 @@ export function roundFile(matchId: string, round: number, which: TeamId | 'ref')
 }
 
 /** Persists the authoritative renders and a reference thumbnail for galleries, history and sharing. */
-export async function archiveRound(matchId: string, round: number, reference: Buffer, drawings: Record<TeamId, Buffer>): Promise<void> {
+export async function archiveRound(matchId: string, round: number, reference: Buffer, drawings: Partial<Record<TeamId, Buffer>>): Promise<void> {
   await fs.mkdir(roundDir(matchId), { recursive: true });
   await Promise.all([
     fs.writeFile(roundFile(matchId, round, 'ref'), await toThumbnail(reference, 768)),
-    fs.writeFile(roundFile(matchId, round, 'A'), drawings.A),
-    fs.writeFile(roundFile(matchId, round, 'B'), drawings.B),
+    ...(Object.entries(drawings) as Array<[TeamId, Buffer]>).map(([t, png]) => fs.writeFile(roundFile(matchId, round, t), png)),
   ]);
 }

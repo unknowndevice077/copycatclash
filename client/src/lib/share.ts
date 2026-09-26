@@ -1,4 +1,4 @@
-import { GAME_NAME, TEAM_COLORS, type RoundSummary } from '@ccc/shared';
+import { GAME_NAME, TEAM_COLORS, type RoundSummary, type TeamId } from '@ccc/shared';
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -32,8 +32,11 @@ function roundedImage(ctx: CanvasRenderingContext2D, img: HTMLImageElement | nul
   ctx.stroke();
 }
 
-/** Builds a 1200x630 share card: logo, reference, both drawings and their scores. */
-export async function buildShareImage(r: RoundSummary, finalScore: { A: number; B: number }): Promise<Blob> {
+/**
+ * Builds a 1200x630 share card: logo, reference and two drawings with their scores. In a
+ * free-for-all the two drawings are yours and the round's best.
+ */
+export async function buildShareImage(r: RoundSummary, finalLine: string, sides: [TeamId, TeamId], names: Record<string, string>): Promise<Blob> {
   const W = 1200;
   const H = 630;
   const c = document.createElement('canvas');
@@ -61,7 +64,8 @@ export async function buildShareImage(r: RoundSummary, finalScore: { A: number; 
   };
   title(GAME_NAME, W / 2, 78, 64, '#ffd23f');
 
-  const [ref, a, b] = await Promise.all([r.referenceUrl, r.images.A, r.images.B].map((u) => loadImage(u).catch(() => null)));
+  const [sa, sb] = sides;
+  const [ref, a, b] = await Promise.all([r.referenceUrl, r.images[sa] ?? '', r.images[sb] ?? ''].map((u) => loadImage(u).catch(() => null)));
   const pw = 360;
   const ph = 270;
   const top = 130;
@@ -71,11 +75,11 @@ export async function buildShareImage(r: RoundSummary, finalScore: { A: number; 
   roundedImage(ctx, b, xs[2], top, pw, ph);
 
   title('Reference', xs[0] + pw / 2, top + ph + 56, 40, '#fff8e7');
-  title(`${Math.round(r.scores.A)}%`, xs[1] + pw / 2, top + ph + 62, 56, TEAM_COLORS.A.main);
-  title(`${Math.round(r.scores.B)}%`, xs[2] + pw / 2, top + ph + 62, 56, TEAM_COLORS.B.main);
-  const verdict = r.winner === 'draw' ? 'DRAW!' : `${TEAM_COLORS[r.winner].icon} ${TEAM_COLORS[r.winner].name} wins the round`;
+  title(`${Math.round(r.scores[sa] ?? 0)}%`, xs[1] + pw / 2, top + ph + 62, 56, TEAM_COLORS[sa].main);
+  title(`${Math.round(r.scores[sb] ?? 0)}%`, xs[2] + pw / 2, top + ph + 62, 56, TEAM_COLORS[sb].main);
+  const verdict = r.winner === 'draw' ? 'DRAW!' : `${TEAM_COLORS[r.winner].icon} ${names[r.winner] ?? TEAM_COLORS[r.winner].name} wins the round`;
   title(verdict, W / 2, H - 70, 40, '#fff8e7');
-  title(`Final ${finalScore.A} – ${finalScore.B}`, W / 2, H - 22, 30, '#3bceac');
+  title(`Final ${finalLine}`, W / 2, H - 22, 30, '#3bceac');
 
   return new Promise((resolve, reject) => c.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('export failed'))), 'image/png'));
 }

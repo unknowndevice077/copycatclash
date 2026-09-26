@@ -3,10 +3,11 @@ import { motion } from 'framer-motion';
 import { sfx } from '../audio/sfx';
 import { CountdownBar } from '../components/Timers';
 import { useCountdown, useSecondMarks } from '../lib/hooks';
+import { scoreLine, sidesOf } from '../lib/sides';
 import { useMatch } from '../store/match';
 
 export function PeekScreen() {
-  const { phaseEndsAt, rules, photoUrl, photoMirrored, round, score, suddenDeath } = useMatch();
+  const { phaseEndsAt, rules, photoUrl, photoMirrored, round, score, suddenDeath, myTeam } = useMatch();
   const left = useCountdown(phaseEndsAt, 50);
   const total = rules?.peekMs ?? 5000;
   useSecondMarks(
@@ -22,9 +23,7 @@ export function PeekScreen() {
           Round {round}
           {suddenDeath ? ' · SUDDEN DEATH' : ''}
         </span>
-        <span>
-          {score.A} – {score.B}
-        </span>
+        <span>{scoreLine(score, sidesOf(rules), myTeam)}</span>
       </div>
       <motion.h1 className="heading text-4xl text-sun sm:text-5xl" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
         {rules && !rules.thumbnailVisible ? 'MEMORISE IT!' : 'PEEK!'}

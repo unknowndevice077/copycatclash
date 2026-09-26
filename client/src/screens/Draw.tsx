@@ -5,6 +5,7 @@ import { DrawCanvas, type Tool } from '../canvas/DrawCanvas';
 import { TeamTag } from '../components/Badges';
 import { TimerRing } from '../components/Timers';
 import { useCountdown, useMediaQuery, useSecondMarks } from '../lib/hooks';
+import { isFfa, scoreLine, sideName, sidesOf } from '../lib/sides';
 import { getSocket } from '../net/socket';
 import { useMatch } from '../store/match';
 import { useSession } from '../store/session';
@@ -15,33 +16,44 @@ import { RelayBanner, TeammateCursors, TeammateList } from './draw/TeamPanels';
 import { Toolbar } from './draw/Toolbar';
 
 function TopBar({ msLeft, total }: { msLeft: number; total: number }) {
-  const { round, score, suddenDeath, myTeam } = useMatch();
+  const { round, score, suddenDeath, myTeam, rules } = useMatch();
+  const sides = sidesOf(rules);
+  const [a, b] = sides;
   return (
     <header className="flex items-center justify-between gap-2 px-2 pt-2">
       <div className="font-display text-lg leading-tight">
         Round {round}
         {suddenDeath && <span className="block text-sm text-coral">Sudden death!</span>}
       </div>
-      <div className="flex items-center gap-2" aria-label={`Score: Team A ${score.A}, Team B ${score.B}`}>
-        <TeamTag team="A" size="sm" label={myTeam === 'A' ? 'You' : 'A'} />
-        <span className="font-display text-2xl">
-          {score.A} – {score.B}
-        </span>
-        <TeamTag team="B" size="sm" label={myTeam === 'B' ? 'You' : 'B'} />
-      </div>
+      {sides.length === 2 ? (
+        <div className="flex items-center gap-2" aria-label={`Score: ${scoreLine(score, sides, myTeam)}`}>
+          <TeamTag team={a} size="sm" label={myTeam === a ? 'You' : a} />
+          <span className="font-display text-2xl">
+            {score[a]} – {score[b]}
+          </span>
+          <TeamTag team={b} size="sm" label={myTeam === b ? 'You' : b} />
+        </div>
+      ) : (
+        <div className="text-center font-display text-lg leading-tight" aria-label="Score">
+          {scoreLine(score, sides, myTeam)}
+          <span className="block text-xs text-sun">Free for all · first to {rules?.roundsToWin}</span>
+        </div>
+      )}
       <TimerRing msLeft={msLeft} totalMs={total} size={60} />
     </header>
   );
 }
 
 function SpectatorView() {
+  const { rules, players } = useMatch();
+  const sides = sidesOf(rules);
   return (
-    <div className="grid flex-1 gap-3 p-3 md:grid-cols-2">
-      {(['A', 'B'] as TeamId[]).map((t) => (
+    <div className={`grid flex-1 gap-3 p-3 md:grid-cols-2 ${sides.length > 2 ? 'xl:grid-cols-3' : ''}`}>
+      {sides.map((t) => (
         <div key={t} className="flex min-h-[260px] flex-col gap-2">
-          <TeamTag team={t} />
+          <TeamTag team={t} label={sideName(t, rules, players, null)} />
           <div className="flex-1">
-            <DrawCanvas team={t} playerId="spectator" canDraw={false} tool="brush" color="#000000" size={10} label={`${TEAM_COLORS[t].name} canvas`} />
+            <DrawCanvas team={t} playerId="spectator" canDraw={false} tool="brush" color="#000000" size={10} label={`${sideName(t, rules, players, null)} canvas`} />
           </div>
         </div>
       ))}
@@ -127,8 +139,13 @@ export function DrawScreen() {
   }
 
   const teammates = players.filter((p) => p.team === myTeam).sort((a, b) => a.slot - b.slot);
-  const opponentTeam: TeamId = myTeam === 'A' ? 'B' : 'A';
-  const preview = rules.opponentPreview && showOpponentPreview ? previews[opponentTeam] : undefined;
+  // Blurred peeks at everyone else's canvas (one opponent in team matches, several in a free-for-all).
+  const opponentPreviews = rules.opponentPreview && showOpponentPreview
+    ? sidesOf(rules)
+        .filter((t) => t !== myTeam)
+        .flatMap((t): Array<[TeamId, string]> => (previews[t] ? [[t, previews[t] as string]] : []))
+    : [];
+  const ffa = isFfa(rules);
 
   const toolbar = (
     <Toolbar
@@ -172,30 +189,34 @@ export function DrawScreen() {
             tool={tool}
             color={color}
             size={size}
-            label={`Shared canvas for ${TEAM_COLORS[myTeam].name}`}
+            label={ffa ? 'Your canvas' : `Shared canvas for ${TEAM_COLORS[myTeam].name}`}
             overlay={<TeammateCursors meId={me} skin={cursorSkin} />}
           />
         </section>
         {desktop ? (
           <aside className="flex w-[220px] shrink-0 flex-col gap-3 overflow-y-auto">
             {paletteEl}
-            <TeammateList players={teammates} meId={me} relay={teamRelay} />
-            {preview && (
-              <div className="paper p-2">
-                <p className="mb-1 font-display text-sm">Opponent progress</p>
-                <img src={preview} alt="Blurred preview of the opponent's canvas" className="aspect-[4/3] w-full rounded-lg border-2 border-ink blur-[3px]" />
+            {!ffa && <TeammateList players={teammates} meId={me} relay={teamRelay} />}
+            {opponentPreviews.map(([t, src]) => (
+              <div key={t} className="paper p-2">
+                <p className="mb-1 truncate font-display text-sm">{ffa ? `${sideName(t, rules, players, myTeam)}'s progress` : 'Opponent progress'}</p>
+                <img src={src} alt={`Blurred preview of ${sideName(t, rules, players, myTeam)}'s canvas`} className="aspect-[4/3] w-full rounded-lg border-2 border-ink blur-[3px]" />
               </div>
-            )}
+            ))}
           </aside>
         ) : (
           <div className="shrink-0 space-y-2 pb-[env(safe-area-inset-bottom)]">
             {paletteEl}
             {toolbar}
             <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <TeammateList players={teammates} meId={me} relay={teamRelay} />
-              </div>
-              {preview && <img src={preview} alt="Blurred preview of the opponent's canvas" className="h-16 rounded-lg border-2 border-ink blur-[2px]" />}
+              {!ffa && (
+                <div className="flex-1">
+                  <TeammateList players={teammates} meId={me} relay={teamRelay} />
+                </div>
+              )}
+              {opponentPreviews.map(([t, src]) => (
+                <img key={t} src={src} alt={`Blurred preview of ${sideName(t, rules, players, myTeam)}'s canvas`} className="h-16 rounded-lg border-2 blur-[2px]" style={{ borderColor: TEAM_COLORS[t].main }} />
+              ))}
             </div>
           </div>
         )}

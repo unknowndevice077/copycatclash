@@ -5,6 +5,7 @@ import { sfx, vibrate } from '../audio/sfx';
 import { TeamTag } from '../components/Badges';
 import { AnimatedNumber } from '../components/Timers';
 import { EmoteBar, EmoteFloats } from '../components/Social';
+import { isFfa, scoreLine, sideName, sidesOf } from '../lib/sides';
 import { useMatch } from '../store/match';
 import { useSettings } from '../store/settings';
 
@@ -47,24 +48,25 @@ export function AttributionLine({ a }: { a: Attribution }) {
   );
 }
 
-function TeamPanel({ team, result, winner, delay, players }: { team: TeamId; result: TeamRoundResult; winner: boolean; delay: number; players: MatchPlayer[] }) {
+function TeamPanel({ team, name, result, winner, delay, players }: { team: TeamId; name: string; result: TeamRoundResult; winner: boolean; delay: number; players: MatchPlayer[] }) {
   const c = TEAM_COLORS[team];
   return (
     <motion.figure
-      className={`paper relative p-2 ${winner ? (team === 'A' ? 'shadow-glowA' : 'shadow-glowB') : ''}`}
-      initial={{ opacity: 0, y: 60, rotate: team === 'A' ? -4 : 4 }}
+      className="paper relative p-2"
+      style={winner ? { boxShadow: `0 0 0 4px ${c.main}80, 0 0 40px 8px ${c.main}8c` } : undefined}
+      initial={{ opacity: 0, y: 60, rotate: team === 'A' || team === 'C' ? -4 : 4 }}
       animate={{ opacity: 1, y: 0, rotate: 0 }}
       transition={{ delay, type: 'spring', stiffness: 160, damping: 16 }}
     >
       <div className="mb-1 flex items-center justify-between">
-        <TeamTag team={team} size="sm" />
+        <TeamTag team={team} size="sm" label={name} />
         {winner && (
           <motion.span className="chip bg-sun" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: delay + 1.6 }}>
             👑 Winner
           </motion.span>
         )}
       </div>
-      <img src={result.imageUrl} alt={`${c.name} drawing`} className="aspect-[4/3] w-full rounded-xl border-2 border-ink bg-white object-cover" />
+      <img src={result.imageUrl} alt={`${name} drawing`} className="aspect-[4/3] w-full rounded-xl border-2 border-ink bg-white object-cover" />
       <figcaption className="mt-2 space-y-1">
         <div className="flex items-end justify-between">
           <span className="font-display text-4xl">
@@ -97,7 +99,7 @@ function TeamPanel({ team, result, winner, delay, players }: { team: TeamId; res
 }
 
 export function ShowdownScreen() {
-  const { showdown, myTeam, players, emotes } = useMatch();
+  const { showdown, myTeam, players, emotes, rules } = useMatch();
   const reduced = useSettings((s) => s.reducedMotion);
   const [shake, setShake] = useState(false);
 
@@ -119,17 +121,19 @@ export function ShowdownScreen() {
 
   if (!showdown) return null;
   const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? 'Player';
-  const banner = showdown.winner === 'draw' ? 'DRAW! +1 each' : `${TEAM_COLORS[showdown.winner].name} takes it!`;
+  const sides = sidesOf(rules).filter((t) => showdown.teams[t]);
+  const ffa = isFfa(rules);
+  const winnerName = showdown.winner === 'draw' ? '' : sideName(showdown.winner, rules, players, myTeam);
+  const banner =
+    showdown.winner === 'draw' ? (ffa ? 'Tie at the top! +1 each' : 'DRAW! +1 each') : winnerName === 'You' ? 'You take it!' : `${winnerName} takes it!`;
 
   return (
     <main className={`mx-auto flex min-h-full max-w-6xl flex-col gap-4 px-3 py-4 ${shake ? 'animate-shake' : ''}`} onAnimationEnd={() => setShake(false)}>
       <div className="flex items-center justify-between font-display text-xl">
         <span>Round {showdown.round} showdown</span>
-        <span>
-          {showdown.scoreAfter.A} – {showdown.scoreAfter.B}
-        </span>
+        <span>{scoreLine(showdown.scoreAfter, sidesOf(rules), myTeam)}</span>
       </div>
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className={`grid gap-3 md:grid-cols-3 ${sides.length > 2 ? 'grid-cols-2' : ''}`}>
         <motion.figure className="paper p-2" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}>
           <div className="mb-1 font-display">Reference{showdown.mirrored ? ' 🪞' : ''}</div>
           <img
@@ -140,8 +144,12 @@ export function ShowdownScreen() {
           />
           <figcaption className="mt-2 font-display text-lg">{showdown.attribution.title}</figcaption>
         </motion.figure>
-        <TeamPanel team="A" result={showdown.teams.A} winner={showdown.winner === 'A'} delay={0.4} players={players} />
-        <TeamPanel team="B" result={showdown.teams.B} winner={showdown.winner === 'B'} delay={0.8} players={players} />
+        {sides.map((t, i) => {
+          const result = showdown.teams[t];
+          return result ? (
+            <TeamPanel key={t} team={t} name={sideName(t, rules, players, myTeam)} result={result} winner={showdown.winner === t} delay={0.4 + i * 0.3} players={players} />
+          ) : null;
+        })}
       </div>
       <motion.h2 className="heading text-center text-4xl text-sun sm:text-5xl" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 2, type: 'spring' }}>
         {banner}

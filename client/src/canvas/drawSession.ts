@@ -1,4 +1,4 @@
-import type { DrawOp, FillOp, StrokeOp, TeamId } from '@ccc/shared';
+import { TEAM_IDS, teamRecord, type DrawOp, type FillOp, type StrokeOp, type TeamId } from '@ccc/shared';
 import type { StrokeRelay } from '@ccc/shared';
 
 export type ChangeKind = 'append' | 'full';
@@ -9,8 +9,8 @@ type Listener = (team: TeamId, kind: ChangeKind) => void;
  * Holds ops outside React so high-frequency stroke updates don't re-render components.
  */
 class DrawSession {
-  private ops: Record<TeamId, DrawOp[]> = { A: [], B: [] };
-  private index: Record<TeamId, Map<string, DrawOp>> = { A: new Map(), B: new Map() };
+  private ops: Record<TeamId, DrawOp[]> = teamRecord(() => []);
+  private index: Record<TeamId, Map<string, DrawOp>> = teamRecord(() => new Map());
   private readonly listeners = new Set<Listener>();
 
   subscribe(fn: Listener): () => void {
@@ -27,15 +27,14 @@ class DrawSession {
   }
 
   reset(): void {
-    this.ops = { A: [], B: [] };
-    this.index = { A: new Map(), B: new Map() };
-    this.emit('A', 'full');
-    this.emit('B', 'full');
+    this.ops = teamRecord(() => []);
+    this.index = teamRecord(() => new Map());
+    for (const t of TEAM_IDS) this.emit(t, 'full');
   }
 
   load(ops: Record<TeamId, DrawOp[]>): void {
-    for (const t of ['A', 'B'] as const) {
-      this.ops[t] = ops[t].map((o) => (o.kind === 'stroke' ? { ...o, points: [...o.points], times: [...o.times] } : { ...o }));
+    for (const t of TEAM_IDS) {
+      this.ops[t] = (ops[t] ?? []).map((o) => (o.kind === 'stroke' ? { ...o, points: [...o.points], times: [...o.times] } : { ...o }));
       this.index[t] = new Map(this.ops[t].map((o) => [o.id, o]));
       this.emit(t, 'full');
     }
@@ -76,7 +75,7 @@ class DrawSession {
 
   /** The server refused one of our ops (relay turn, color lock, time up); drop it locally. */
   reject(id: string): void {
-    for (const t of ['A', 'B'] as const) {
+    for (const t of TEAM_IDS) {
       if (!this.index[t].has(id)) continue;
       this.ops[t] = this.ops[t].filter((o) => o.id !== id);
       this.index[t].delete(id);

@@ -3,6 +3,7 @@
 Real-time PvP drawing game. Both teams see the same reference photo, recreate it on a shared team canvas, and an AI judge scores which drawing is closer. First team to 5 round points wins.
 
 - **1v1 / 2v2 / 3v3**, ranked (Classic) and casual queues, parties, custom rooms with spectators
+- **Custom-room formats:** team battle (pick Team A or B, then share a canvas with your team) or **free for all** (up to 5 players, each drawing their own picture; the best score takes the round, and anyone within 2 points shares it)
 - **Modes:** Classic, Speed, Memory, Relay, Color Lock, Mirror Match, Limited Palette
 - **Scoring:** Claude vision judge (server-side only) with an automatic local pixel-comparison fallback
 - **263 curated royalty-free photos** (Unsplash License) across 7 categories, with attribution

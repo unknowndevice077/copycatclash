@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CANVAS_H, CANVAS_W, applyFill, clearCanvas, drawStroke, type Ctx2D, type DrawOp, type ReplayData, type TeamId } from '@ccc/shared';
+import { CANVAS_H, CANVAS_W, TEAM_COLORS, applyFill, clearCanvas, drawStroke, type Ctx2D, type DrawOp, type ReplayData, type TeamId } from '@ccc/shared';
 import { api } from '../net/api';
 
 function renderAt(ctx: Ctx2D, ops: DrawOp[], t: number, w: number, h: number): void {
@@ -17,12 +17,12 @@ function renderAt(ctx: Ctx2D, ops: DrawOp[], t: number, w: number, h: number): v
   }
 }
 
-/** Scrubbable time-lapse of both team canvases for one round. */
-export function ReplayPlayer({ matchId, round }: { matchId: string; round: number }) {
+/** Scrubbable time-lapse of every side's canvas for one round. `names` labels each canvas. */
+export function ReplayPlayer({ matchId, round, names }: { matchId: string; round: number; names?: Partial<Record<TeamId, string>> }) {
   const [data, setData] = useState<ReplayData | null>(null);
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(true);
-  const refs = { A: useRef<HTMLCanvasElement>(null), B: useRef<HTMLCanvasElement>(null) };
+  const refs = useRef(new Map<TeamId, HTMLCanvasElement>());
 
   useEffect(() => {
     setData(null);
@@ -58,10 +58,10 @@ export function ReplayPlayer({ matchId, round }: { matchId: string; round: numbe
 
   useEffect(() => {
     if (!data) return;
-    for (const team of ['A', 'B'] as TeamId[]) {
-      const c = refs[team].current;
+    for (const team of data.teamIds) {
+      const c = refs.current.get(team);
       const ctx = c?.getContext('2d', { willReadFrequently: true });
-      if (c && ctx) renderAt(ctx as unknown as Ctx2D, data.ops[team], t, c.width, c.height);
+      if (c && ctx) renderAt(ctx as unknown as Ctx2D, data.ops[team] ?? [], t, c.width, c.height);
     }
     // refs are stable objects; re-render only on data/time change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -70,9 +70,22 @@ export function ReplayPlayer({ matchId, round }: { matchId: string; round: numbe
   if (!data) return <p className="p-4 text-center font-bold">Loading replay…</p>;
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-2 gap-2">
-        {(['A', 'B'] as TeamId[]).map((team) => (
-          <canvas key={team} ref={refs[team]} width={CANVAS_W / 2} height={CANVAS_H / 2} className="w-full rounded-xl border-2 border-ink bg-white" aria-label={`Team ${team} time-lapse`} />
+      <div className={`grid gap-2 ${data.teamIds.length > 2 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'}`}>
+        {data.teamIds.map((team) => (
+          <figure key={team} className="min-w-0">
+            <canvas
+              ref={(el) => {
+                if (el) refs.current.set(team, el);
+                else refs.current.delete(team);
+              }}
+              width={CANVAS_W / 2}
+              height={CANVAS_H / 2}
+              className="w-full rounded-xl border-2 border-ink bg-white"
+              style={{ borderColor: TEAM_COLORS[team].main }}
+              aria-label={`${names?.[team] ?? TEAM_COLORS[team].name} time-lapse`}
+            />
+            {names?.[team] && <figcaption className="truncate text-center text-xs font-extrabold">{names[team]}</figcaption>}
+          </figure>
         ))}
       </div>
       <div className="flex items-center gap-2">

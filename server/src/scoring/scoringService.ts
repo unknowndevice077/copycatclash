@@ -24,12 +24,12 @@ export interface ScoreRequest {
   mirrored: boolean;
   /** Normalised 1024x768 reference (already mirrored if needed). */
   reference: Buffer;
-  drawings: Record<TeamId, DrawingInput>;
+  /** One drawing per side taking part (two in team matches, up to five in a free-for-all). */
+  drawings: Partial<Record<TeamId, DrawingInput>>;
 }
 
 export interface ScoreOutcome {
-  A: ScoreDetail;
-  B: ScoreDetail;
+  details: Partial<Record<TeamId, ScoreDetail>>;
   usedFallback: boolean;
 }
 
@@ -70,12 +70,13 @@ export class ScoringService extends EventEmitter {
 
   async scoreRound(req: ScoreRequest): Promise<ScoreOutcome> {
     const refJpeg = await toScoringJpeg(req.reference);
-    const result = {} as Record<TeamId, ScoreDetail>;
+    const result: Partial<Record<TeamId, ScoreDetail>> = {};
     const pending: Prepared[] = [];
     let usedFallback = false;
 
-    for (const team of ['A', 'B'] as const) {
+    for (const team of Object.keys(req.drawings) as TeamId[]) {
       const d = req.drawings[team];
+      if (!d) continue;
       if (d.coverage < BLANK_COVERAGE) {
         result[team] = { score: 0, reason: 'The canvas was blank.', source: 'blank', estimated: false, pixelScore: 0 };
         this.record(req, team, 'blank', 0, 0, null);
@@ -107,7 +108,7 @@ export class ScoringService extends EventEmitter {
         }
       }
     }
-    return { A: result.A, B: result.B, usedFallback };
+    return { details: result, usedFallback };
   }
 
   private canUseAi(matchId: string): boolean {

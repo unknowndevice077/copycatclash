@@ -12,6 +12,7 @@ import {
   ROUNDS_TO_WIN_MAX,
   ROUNDS_TO_WIN_MIN,
   STROKE_LIMITS,
+  MATCH_FORMATS,
   TEAM_IDS,
   TEAM_SIZES,
 } from './constants';
@@ -95,6 +96,7 @@ export const reportSchema = z.object({
 
 export const roomSettingsSchema = z.object({
   mode: z.enum(GAME_MODES),
+  format: z.enum(MATCH_FORMATS),
   teamSize: z.enum(TEAM_SIZES),
   roundsToWin: z.number().int().min(ROUNDS_TO_WIN_MIN).max(ROUNDS_TO_WIN_MAX),
   peekSec: z.number().int().min(3).max(10),

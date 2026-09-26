@@ -167,18 +167,22 @@ function RoomsPanel() {
     };
   }, [setLobby]);
 
-  const create = async () => {
-    const room = await actions.createRoom(defaultRoomSettings());
+  const create = async (format: 'teams' | 'ffa' = 'teams') => {
+    const settings = defaultRoomSettings('classic', format === 'ffa' ? '1v1' : '2v2');
+    const room = await actions.createRoom({ ...settings, format });
     if (room) navigate(`/room/${room.code}`);
   };
 
   return (
     <section className="paper p-4">
       <h2 className="font-display text-xl">Custom rooms</h2>
-      <p className="text-sm font-bold">Your rules, your teams, spectators welcome.</p>
+      <p className="text-sm font-bold">Your rules, pick your team, or everyone for themselves. Spectators welcome.</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button type="button" className="btn-coral" onClick={() => void create()}>
-          Create room
+        <button type="button" className="btn-coral" onClick={() => void create('teams')}>
+          Team battle
+        </button>
+        <button type="button" className="btn-volt" onClick={() => void create('ffa')}>
+          Free for all
         </button>
         <form
           className="flex flex-1 gap-2"
@@ -202,7 +206,7 @@ function RoomsPanel() {
             <li key={r.code}>
               <Link to={`/room/${r.code}`} className="flex min-h-[44px] items-center justify-between rounded-xl border-2 border-ink bg-paperdim px-3 font-extrabold hover:bg-sun">
                 <span>
-                  {r.hostName}'s room · {MODE_PRESETS[r.mode].label} {r.teamSize}
+                  {r.hostName}'s room · {MODE_PRESETS[r.mode].label} {r.format === 'ffa' ? 'free for all' : r.teamSize}
                 </span>
                 <span className="text-sm">
                   {r.players}/{r.capacity} {r.inMatch ? '· live' : ''}

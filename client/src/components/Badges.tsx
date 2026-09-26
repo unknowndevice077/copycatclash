@@ -32,8 +32,8 @@ export function TeamTag({ team, label, size = 'md' }: { team: TeamId; label?: st
   const pad = size === 'lg' ? 'px-4 py-1.5 text-xl' : size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm';
   return (
     <span
-      className={`pattern-${team} inline-flex items-center gap-1.5 rounded-full border-3 border-ink font-display text-paper shadow-chunky-sm ${pad}`}
-      style={{ backgroundColor: c.main }}
+      className={`pattern-${team} inline-flex max-w-full items-center gap-1.5 truncate rounded-full border-3 border-ink font-display shadow-chunky-sm ${pad}`}
+      style={{ backgroundColor: c.main, color: c.text }}
     >
       <span aria-hidden>{c.icon}</span>
       {label ?? c.name}

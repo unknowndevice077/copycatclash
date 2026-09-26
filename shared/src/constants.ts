@@ -8,8 +8,17 @@ export const CANVAS_H = 768;
 export const SCORE_W = 768;
 export const SCORE_H = 576;
 
-export const TEAM_IDS = ['A', 'B'] as const;
+/**
+ * Sides in a match. Team matches use A and B; a free-for-all gives every player their own side (up to five).
+ */
+export const TEAM_IDS = ['A', 'B', 'C', 'D', 'E'] as const;
 export type TeamId = (typeof TEAM_IDS)[number];
+export const VERSUS_TEAMS: TeamId[] = ['A', 'B'];
+
+/** "teams": two teams (1v1, 2v2, 3v3). "ffa": free for all, every player for themselves. */
+export const MATCH_FORMATS = ['teams', 'ffa'] as const;
+export type MatchFormat = (typeof MATCH_FORMATS)[number];
+export const FFA_MAX_PLAYERS = 5;
 
 export const TEAM_SIZES = ['1v1', '2v2', '3v3'] as const;
 export type TeamSize = (typeof TEAM_SIZES)[number];
@@ -180,9 +189,13 @@ export const LIMITED_PALETTE_6 = ['#000000', '#ffffff', '#e53935', '#ffd166', '#
 /** Colors used for teammate cursor labels (slot order). Distinct from team colors. */
 export const TEAMMATE_LABEL_COLORS = ['#ffd23f', '#3bceac', '#ee4266'] as const;
 
-export const TEAM_COLORS: Record<TeamId, { main: string; soft: string; name: string; icon: string }> = {
-  A: { main: '#ff5a5f', soft: '#ffb3b5', name: 'Team Coral', icon: '▲' },
-  B: { main: '#2d7dff', soft: '#a9c8ff', name: 'Team Volt', icon: '●' },
+/** `text` is the readable label color on top of `main`. */
+export const TEAM_COLORS: Record<TeamId, { main: string; soft: string; name: string; icon: string; text: string }> = {
+  A: { main: '#ff5a5f', soft: '#ffb3b5', name: 'Team Coral', icon: '▲', text: '#fff8e7' },
+  B: { main: '#2d7dff', soft: '#a9c8ff', name: 'Team Volt', icon: '●', text: '#fff8e7' },
+  C: { main: '#ffd23f', soft: '#ffe9a0', name: 'Team Sun', icon: '■', text: '#140a2b' },
+  D: { main: '#3bceac', soft: '#a8ecd9', name: 'Team Mint', icon: '◆', text: '#140a2b' },
+  E: { main: '#9d4edd', soft: '#d3b0f0', name: 'Team Grape', icon: '★', text: '#fff8e7' },
 };
 
 export const BRUSH_SIZES = [4, 10, 22, 44] as const;

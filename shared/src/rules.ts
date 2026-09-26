@@ -6,8 +6,11 @@ import {
   PALETTE_24,
   PHOTO_CATEGORIES,
   ROUNDS_TO_WIN_DEFAULT,
+  TEAM_IDS,
   TEAM_SIZE_COUNT,
+  VERSUS_TEAMS,
   type GameMode,
+  type TeamId,
   type TeamSize,
 } from './constants';
 import type { MatchRules, RoomSettings } from './types';
@@ -16,6 +19,8 @@ export function rulesForQueue(mode: GameMode, teamSize: TeamSize, ranked: boolea
   const p = MODE_PRESETS[mode];
   return {
     mode,
+    format: 'teams',
+    teamIds: [...VERSUS_TEAMS],
     teamSize,
     ranked,
     ghost: false,
@@ -38,11 +43,14 @@ export function rulesForQueue(mode: GameMode, teamSize: TeamSize, ranked: boolea
   };
 }
 
-export function rulesForRoom(s: RoomSettings): MatchRules {
-  const multi = TEAM_SIZE_COUNT[s.teamSize] > 1;
+/** `teamIds` are the seats actually taken (free-for-all rooms only fill some of A..E). */
+export function rulesForRoom(s: RoomSettings, teamIds: TeamId[] = [...VERSUS_TEAMS]): MatchRules {
+  const multi = s.format === 'teams' && TEAM_SIZE_COUNT[s.teamSize] > 1;
   return {
     mode: s.mode,
-    teamSize: s.teamSize,
+    format: s.format,
+    teamIds,
+    teamSize: s.format === 'ffa' ? '1v1' : s.teamSize,
     ranked: false,
     ghost: false,
     custom: true,
@@ -68,6 +76,7 @@ export function defaultRoomSettings(mode: GameMode = 'classic', teamSize: TeamSi
   const p = MODE_PRESETS[mode];
   return {
     mode,
+    format: 'teams',
     teamSize,
     roundsToWin: ROUNDS_TO_WIN_DEFAULT,
     peekSec: Math.round(p.peekMs / 1000),
@@ -87,6 +96,11 @@ export function defaultRoomSettings(mode: GameMode = 'classic', teamSize: TeamSi
     isPrivate: true,
     useUploadedPhotos: false,
   };
+}
+
+/** A value for every side, e.g. `teamRecord(() => 0)` for a blank scoreboard. */
+export function teamRecord<T>(make: (team: TeamId) => T): Record<TeamId, T> {
+  return Object.fromEntries(TEAM_IDS.map((t) => [t, make(t)])) as Record<TeamId, T>;
 }
 
 export function basePalette(rules: Pick<MatchRules, 'limitedPalette'>): string[] {

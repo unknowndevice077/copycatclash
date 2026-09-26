@@ -1,4 +1,4 @@
-import type { Difficulty, EmoteId, GameMode, PhotoCategory, PhotoTheme, TeamId, TeamSize } from './constants';
+import type { Difficulty, EmoteId, GameMode, MatchFormat, PhotoCategory, PhotoTheme, TeamId, TeamSize } from './constants';
 
 export type Ack<T = undefined> = { ok: true; data: T } | { ok: false; error: string; code?: string };
 
@@ -57,6 +57,9 @@ export interface MatchPlayer extends PublicPlayer {
 
 export interface MatchRules {
   mode: GameMode;
+  format: MatchFormat;
+  /** Sides taking part: A and B in team matches, one per player in a free-for-all. */
+  teamIds: TeamId[];
   teamSize: TeamSize;
   ranked: boolean;
   ghost: boolean;
@@ -175,7 +178,7 @@ export interface ShowdownPayload {
   referenceUrl: string;
   mirrored: boolean;
   attribution: Attribution;
-  teams: Record<TeamId, TeamRoundResult>;
+  teams: Partial<Record<TeamId, TeamRoundResult>>;
   winner: TeamId | 'draw';
   scoreAfter: Record<TeamId, number>;
 }
@@ -185,8 +188,8 @@ export interface RoundSummary {
   photoTitle: string;
   referenceUrl: string;
   mirrored: boolean;
-  images: Record<TeamId, string>;
-  scores: Record<TeamId, number>;
+  images: Partial<Record<TeamId, string>>;
+  scores: Partial<Record<TeamId, number>>;
   winner: TeamId | 'draw';
   estimated: boolean;
 }
@@ -214,7 +217,8 @@ export interface MatchResultPayload {
 
 export interface ReplayData {
   drawMs: number;
-  ops: Record<TeamId, DrawOp[]>;
+  teamIds: TeamId[];
+  ops: Partial<Record<TeamId, DrawOp[]>>;
 }
 
 export interface QueueStatus {
@@ -251,6 +255,7 @@ export interface PartyState {
 
 export interface RoomSettings {
   mode: GameMode;
+  format: MatchFormat;
   teamSize: TeamSize;
   roundsToWin: number;
   peekSec: number;
@@ -286,6 +291,7 @@ export interface RoomListing {
   hostName: string;
   mode: GameMode;
   teamSize: TeamSize;
+  format: MatchFormat;
   players: number;
   capacity: number;
   inMatch: boolean;
@@ -342,7 +348,7 @@ export interface MatchHistoryItem {
   ghost: boolean;
   team: TeamId;
   result: 'win' | 'loss' | 'draw';
-  score: Record<TeamId, number>;
+  score: Partial<Record<TeamId, number>>;
   delta: number;
   thumbnail: string | null;
 }

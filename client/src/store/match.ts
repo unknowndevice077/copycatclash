@@ -12,6 +12,7 @@ import type {
   ShowdownPayload,
   TeamId,
 } from '@ccc/shared';
+import { teamRecord } from '@ccc/shared';
 
 export interface MatchState {
   matchId: string | null;
@@ -54,9 +55,9 @@ const initial = {
   phase: null,
   phaseEndsAt: 0,
   round: 0,
-  score: { A: 0, B: 0 },
+  score: teamRecord(() => 0),
   suddenDeath: false,
-  relay: { A: null, B: null },
+  relay: teamRecord(() => null),
   aiDegraded: false,
   photoUrl: null,
   photoMirrored: false,

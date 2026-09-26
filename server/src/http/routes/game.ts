@@ -3,7 +3,7 @@ import os from 'node:os';
 import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
-import { TEAM_SIZES } from '@ccc/shared';
+import { TEAM_SIZES, type TeamId } from '@ccc/shared';
 import { config } from '../../config';
 import type { AppContext } from '../../context';
 import { roundFile } from '../../game/roundArchive';
@@ -56,7 +56,8 @@ export function gameRoutes(ctx: AppContext): Router {
       const matchId = String(req.params.matchId);
       const round = Number(req.params.round);
       const file = String(req.params.file);
-      const which = file === 'A.png' ? 'A' : file === 'B.png' ? 'B' : file === 'ref.jpg' ? 'ref' : null;
+      const side = /^([A-E])\.png$/.exec(file)?.[1] as TeamId | undefined;
+      const which = side ?? (file === 'ref.jpg' ? 'ref' : null);
       if (!which || !Number.isInteger(round) || round < 1 || !/^m_[A-Za-z0-9_-]+$/.test(matchId) || !ctx.matches.roundExists(matchId, round)) {
         res.status(404).end();
         return;

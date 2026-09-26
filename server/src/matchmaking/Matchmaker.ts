@@ -5,6 +5,7 @@ import {
   RANKED_MODE,
   TEAM_SIZE_COUNT,
   rulesForQueue,
+  teamRecord,
   type QueueJoinInput,
   type QueueStatus,
   type TeamId,
@@ -36,7 +37,7 @@ export function eloWindow(waitedMs: number): number {
 
 /** Splits entries (parties stay together) into two full, Elo-balanced teams, or returns null. */
 export function packTeams(entries: QueueEntry[], perTeam: number): Record<TeamId, QueueEntry[]> | null {
-  const teams: Record<TeamId, QueueEntry[]> = { A: [], B: [] };
+  const teams: Record<TeamId, QueueEntry[]> = teamRecord(() => []);
   const size = { A: 0, B: 0 };
   const eloSum = { A: 0, B: 0 };
   const sorted = [...entries].sort((a, b) => b.playerIds.length - a.playerIds.length || b.elo - a.elo);
@@ -208,7 +209,7 @@ export class Matchmaker {
 
   private async launch(key: string, teams: Record<TeamId, QueueEntry[]>): Promise<void> {
     const any = teams.A[0];
-    const seats: Record<TeamId, Seat[]> = { A: [], B: [] };
+    const seats: Record<TeamId, Seat[]> = teamRecord(() => []);
     for (const t of ['A', 'B'] as const) {
       for (const e of teams[t]) {
         await this.deps.store.removeEntry(e.entryId);

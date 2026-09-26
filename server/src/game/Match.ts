@@ -4,6 +4,7 @@ import {
   RECONNECT_WINDOW_MS,
   TEAM_IDS,
   TEAMMATE_LABEL_COLORS,
+  teamRecord,
   allowedColorsFor,
   customColorAllowed,
   rankFromElo,
@@ -72,7 +73,7 @@ export interface MatchDeps {
 
 export interface MatchOptions {
   rules: MatchRules;
-  teams: Record<TeamId, Seat[]>;
+  teams: Partial<Record<TeamId, Seat[]>>;
   ghostPlan?: GhostRecording[];
   uploadsKey?: string | null;
   spectatorIds?: string[];
@@ -92,8 +93,6 @@ interface RoundState {
   ghost: GhostRecording | null;
 }
 
-const other = (t: TeamId): TeamId => (t === 'A' ? 'B' : 'A');
-
 export class Match {
   readonly id = newId('m_');
   readonly rules: MatchRules;
@@ -111,11 +110,11 @@ export class Match {
   private phaseTimer: NodeJS.Timeout | null = null;
   private roundTimers: NodeJS.Timeout[] = [];
   private relayTimers: Partial<Record<TeamId, NodeJS.Timeout>> = {};
-  private relay: Record<TeamId, RelayState | null> = { A: null, B: null };
+  private relay: Record<TeamId, RelayState | null> = teamRecord(() => null);
   private round = 0;
   private suddenDeath = false;
   private suddenDeathRounds = 0;
-  private score: Record<TeamId, number> = { A: 0, B: 0 };
+  private score: Record<TeamId, number> = teamRecord(() => 0);
   private readonly usedPhotos = new Set<string>();
   private current: RoundState | null = null;
   private readonly history: RoundSummary[] = [];
@@ -134,8 +133,8 @@ export class Match {
     this.ghostPlan = opts.ghostPlan ?? [];
     this.uploadsKey = opts.uploadsKey ?? null;
     this.roomCode = opts.roomCode ?? null;
-    for (const team of TEAM_IDS) {
-      opts.teams[team].forEach((seat, slot) => {
+    for (const team of this.rules.teamIds) {
+      (opts.teams[team] ?? []).forEach((seat, slot) => {
         this.players.set(seat.id, {
           id: seat.id,
           name: seat.name,
@@ -162,6 +161,10 @@ export class Match {
   private get room(): string {
     return `m:${this.id}`;
   }
+  /** Sides taking part in this match. */
+  private get teams(): TeamId[] {
+    return this.rules.teamIds;
+  }
   private teamRoom(t: TeamId): string {
     return `m:${this.id}:${t}`;
   }
@@ -181,10 +184,10 @@ export class Match {
     return [...this.spectators];
   }
 
-  teamSeats(): Record<TeamId, Seat[]> {
-    const out: Record<TeamId, Seat[]> = { A: [], B: [] };
+  teamSeats(): Partial<Record<TeamId, Seat[]>> {
+    const out: Partial<Record<TeamId, Seat[]>> = {};
     for (const p of [...this.players.values()].sort((a, b) => a.slot - b.slot)) {
-      out[p.team].push({ id: p.id, name: p.name, level: p.level, elo: p.elo, games: p.games, isGhost: p.isGhost });
+      (out[p.team] ??= []).push({ id: p.id, name: p.name, level: p.level, elo: p.elo, games: p.games, isGhost: p.isGhost });
     }
     return out;
   }
@@ -217,7 +220,7 @@ export class Match {
       round: this.round,
       score: { ...this.score },
       suddenDeath: this.suddenDeath,
-      relay: { A: this.relay.A, B: this.relay.B },
+      relay: { ...this.relay },
       aiDegraded: this.aiDegraded,
     };
   }
@@ -304,8 +307,8 @@ export class Match {
     });
     if (this.closed || this.finishing) return;
     this.usedPhotos.add(photo.record.id);
-    this.current = { photo, canvases: { A: new TeamCanvas(), B: new TeamCanvas() }, drawStartedAt: 0, ghost };
-    this.relay = { A: null, B: null };
+    this.current = { photo, canvases: teamRecord(() => new TeamCanvas()), drawStartedAt: 0, ghost };
+    this.relay = teamRecord(() => null);
 
     this.setPhase('PEEK', this.rules.peekMs, () => this.startDraw());
     for (const id of [...this.humanIds(), ...this.spectators]) {
@@ -323,7 +326,7 @@ export class Match {
   private startDraw(): void {
     if (!this.current) return;
     this.current.drawStartedAt = Date.now();
-    for (const team of TEAM_IDS) if (this.rules.relay) this.initRelay(team);
+    for (const team of this.teams) if (this.rules.relay) this.initRelay(team);
     this.setPhase('DRAW', this.rules.drawMs, () => this.endDraw());
     this.scheduleGhost();
     if (this.rules.opponentPreview) this.schedulePreviews();
@@ -410,9 +413,10 @@ export class Match {
   private schedulePreviews(): void {
     const tick = (): void => {
       if (this.phase !== 'DRAW' || !this.current) return;
-      for (const team of TEAM_IDS) {
+      for (const team of this.teams) {
         const image = renderPreviewDataUrl(this.current.canvases[team].ops);
-        this.deps.io.to(this.teamRoom(other(team))).emit('match:preview', { team, image });
+        const others = this.teams.filter((t) => t !== team).map((t) => this.teamRoom(t));
+        this.deps.io.to(others).emit('match:preview', { team, image });
       }
       this.roundTimers.push(setTimeout(tick, 2500));
     };
@@ -430,7 +434,7 @@ export class Match {
 
   private endDraw(): void {
     this.clearRoundTimers();
-    this.relay = { A: null, B: null };
+    this.relay = teamRecord(() => null);
     this.setPhase('SCORING', MATCH_TIMINGS.scoringMinMs, null);
     this.safely(() => this.scoreRound());
   }
@@ -439,10 +443,12 @@ export class Match {
     const cur = this.current;
     if (!cur) return;
     const started = Date.now();
-    const ops = { A: cur.canvases.A.finalOps(), B: cur.canvases.B.finalOps() };
-    const renders = { A: renderTeamPng(ops.A), B: renderTeamPng(ops.B) };
-    const teamIds = (t: TeamId) => [...this.players.values()].filter((p) => p.team === t).sort((a, b) => a.slot - b.slot).map((p) => p.id);
-    const contributions = { A: computeContributions(ops.A, teamIds('A')), B: computeContributions(ops.B, teamIds('B')) };
+    const teams = this.teams;
+    const perTeam = <T>(fn: (t: TeamId) => T): Partial<Record<TeamId, T>> => Object.fromEntries(teams.map((t) => [t, fn(t)]));
+    const ops = teamRecord((t) => (teams.includes(t) ? cur.canvases[t].finalOps() : []));
+    const renders = perTeam((t) => renderTeamPng(ops[t]));
+    const memberIds = (t: TeamId) => [...this.players.values()].filter((p) => p.team === t).sort((a, b) => a.slot - b.slot).map((p) => p.id);
+    const contributions = teamRecord((t) => (teams.includes(t) ? computeContributions(ops[t], memberIds(t)) : []));
 
     const outcome = await this.deps.scoring.scoreRound({
       matchId: this.id,
@@ -467,18 +473,18 @@ export class Match {
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     if (this.closed || this.finishing) return;
 
-    const decision = decideRound(outcome.A, outcome.B, this.rules.tieBreakByPixels || config.scoring.tieBreakByPixels);
-    this.score.A += decision.points.A;
-    this.score.B += decision.points.B;
+    const details = outcome.details;
+    const decision = decideRound(details, teams, this.rules.tieBreakByPixels || config.scoring.tieBreakByPixels);
+    for (const t of teams) this.score[t] += decision.points[t];
 
     const contribMap: Record<string, number> = {};
-    for (const t of TEAM_IDS) for (const c of contributions[t]) contribMap[c.playerId] = c.pct;
+    for (const t of teams) for (const c of contributions[t]) contribMap[c.playerId] = c.pct;
     this.roundContribs.push(contribMap);
 
     const record = cur.photo.record;
     const referenceUrl = record.revealUrl ?? roundImageUrl(this.id, this.round, 'ref');
-    const estimated = outcome.A.estimated || outcome.B.estimated;
-    await archiveRound(this.id, this.round, cur.photo.image, { A: renders.A.png, B: renders.B.png });
+    const estimated = teams.some((t) => details[t]?.estimated);
+    await archiveRound(this.id, this.round, cur.photo.image, perTeam((t) => renders[t]?.png ?? Buffer.alloc(0)));
     this.deps.matches.insertRound({
       matchId: this.id,
       round: this.round,
@@ -487,21 +493,22 @@ export class Match {
       mirrored: cur.photo.mirrored,
       revealUrl: record.revealUrl,
       attribution: record.attribution,
-      scores: { A: outcome.A, B: outcome.B },
+      teamIds: teams,
+      scores: details,
       winner: decision.winner,
       estimated,
       drawMs: this.rules.drawMs,
-      ops,
+      ops: perTeam((t) => ops[t]),
     });
-    this.recordGhosts(ops, { A: outcome.A.score, B: outcome.B.score });
+    this.recordGhosts(ops, teamRecord((t) => details[t]?.score ?? 0));
 
     const summary: RoundSummary = {
       round: this.round,
       photoTitle: record.title,
       referenceUrl,
       mirrored: cur.photo.mirrored,
-      images: { A: roundImageUrl(this.id, this.round, 'A'), B: roundImageUrl(this.id, this.round, 'B') },
-      scores: { A: outcome.A.score, B: outcome.B.score },
+      images: perTeam((t) => roundImageUrl(this.id, this.round, t)),
+      scores: perTeam((t) => details[t]?.score ?? 0),
       winner: decision.winner,
       estimated,
     };
@@ -512,23 +519,25 @@ export class Match {
       referenceUrl,
       mirrored: cur.photo.mirrored,
       attribution: record.attribution,
-      teams: {
-        A: { detail: outcome.A, imageUrl: summary.images.A, contributions: contributions.A },
-        B: { detail: outcome.B, imageUrl: summary.images.B, contributions: contributions.B },
-      },
+      teams: Object.fromEntries(
+        teams.flatMap((t) => {
+          const detail = details[t];
+          return detail ? [[t, { detail, imageUrl: roundImageUrl(this.id, this.round, t), contributions: contributions[t] }]] : [];
+        }),
+      ),
       winner: decision.winner,
       scoreAfter: { ...this.score },
     };
     this.deps.io.to(this.room).emit('round:showdown', this.lastShowdown);
-    this.setPhase('SHOWDOWN', MATCH_TIMINGS.showdownMs, () => this.afterShowdown(decision.winner));
+    this.setPhase('SHOWDOWN', MATCH_TIMINGS.showdownMs, () => this.afterShowdown());
   }
 
   /** Stores 1v1 drawings of curated photos as ghosts for future "Play vs Ghost" matches. */
   private recordGhosts(ops: Record<TeamId, DrawOp[]>, scores: Record<TeamId, number>): void {
     const cur = this.current;
-    if (!cur || this.rules.ghost || this.rules.teamSize !== '1v1' || this.rules.mirror || this.uploadsKey) return;
+    if (!cur || this.rules.ghost || this.rules.format !== 'teams' || this.rules.teamSize !== '1v1' || this.rules.mirror || this.uploadsKey) return;
     if (!this.deps.photos.local.byId(cur.photo.record.id)) return;
-    for (const team of TEAM_IDS) {
+    for (const team of this.teams) {
       const p = [...this.players.values()].find((x) => x.team === team && !x.isGhost);
       if (!p || scores[team] <= 5) continue;
       this.deps.ghosts.insert({
@@ -544,13 +553,13 @@ export class Match {
     }
   }
 
-  private afterShowdown(lastWinner: TeamId | 'draw'): void {
+  private afterShowdown(): void {
     const progress = matchProgress({
       score: this.score,
+      teams: this.teams,
       roundsPlayed: this.round,
       roundsToWin: this.rules.roundsToWin,
       suddenDeathRoundsPlayed: this.suddenDeathRounds,
-      lastWinner,
       inSuddenDeath: this.suddenDeath,
     });
     if (progress.kind === 'finished') {
@@ -570,6 +579,7 @@ export class Match {
 
     const all = [...this.players.values()];
     const teamElo = (t: TeamId) => average(all.filter((p) => p.team === t).map((p) => p.elo));
+    const opponentElo = (t: TeamId) => average(all.filter((p) => p.team !== t).map((p) => p.elo));
     const eloChanges: Record<string, EloChange> = {};
     const xp: MatchResultPayload['xp'] = {};
     const contributions: Record<string, number> = {};
@@ -595,7 +605,7 @@ export class Match {
           // Teammates who stayed when their team forfeited lose less.
           if (forfeit && p.team === forfeitingTeam && p.connected && !p.left) factor *= 0.5;
           const actual = result === 'win' ? 1 : result === 'draw' ? 0.5 : 0;
-          after = rating.elo + eloDelta({ teamElo: teamElo(p.team), opponentElo: teamElo(other(p.team)), actual, gamesPlayed: rating.games, factor });
+          after = rating.elo + eloDelta({ teamElo: teamElo(p.team), opponentElo: opponentElo(p.team), actual, gamesPlayed: rating.games, factor });
           this.deps.players.applyRating(p.id, this.rules.teamSize, after, result);
         }
         const row = this.deps.players.byId(p.id);
@@ -626,7 +636,7 @@ export class Match {
       });
     }
 
-    this.deps.matches.finish(this.id, winner, this.score, forfeit, this.aiDegraded, inserts);
+    this.deps.matches.finish(this.id, winner, Object.fromEntries(this.teams.map((t) => [t, this.score[t]])), forfeit, this.aiDegraded, inserts);
     this.deps.scoring.releaseMatch(this.id);
 
     this.result = {
@@ -664,7 +674,7 @@ export class Match {
     if (this.phaseTimer) clearTimeout(this.phaseTimer);
     for (const p of this.players.values()) if (p.dcTimer) clearTimeout(p.dcTimer);
     this.deps.io.to(this.room).emit('match:closed', { matchId: this.id, reason });
-    for (const room of [this.room, this.teamRoom('A'), this.teamRoom('B'), this.specRoom]) this.deps.io.socketsLeave(room);
+    for (const room of [this.room, ...TEAM_IDS.map((t) => this.teamRoom(t)), this.specRoom]) this.deps.io.socketsLeave(room);
     this.deps.hooks.onClosed(this);
   }
 
@@ -760,17 +770,20 @@ export class Match {
     this.checkForfeit();
   }
 
-  /** A team whose every human has left (or timed out) forfeits. */
+  /**
+   * A side whose every human has left (or timed out) is out. The others play on; once only one side
+   * is left it wins by forfeit.
+   */
   private checkForfeit(): void {
     const gone = (t: TeamId) => {
       const members = this.humans().filter((h) => h.team === t);
       return members.length > 0 && members.every((h) => h.left);
     };
-    const goneA = gone('A');
-    const goneB = gone('B');
-    if (goneA && goneB) this.abort('Everyone left the match.');
-    else if (goneA) this.finish('B', true, 'A');
-    else if (goneB) this.finish('A', true, 'B');
+    const out = this.teams.filter(gone);
+    const remaining = this.teams.filter((t) => !gone(t));
+    if (!out.length) return;
+    if (remaining.length === 0) this.abort('Everyone left the match.');
+    else if (remaining.length === 1) this.finish(remaining[0], true, out[out.length - 1]);
   }
 
   voteRematch(playerId: string): { ok: boolean; error?: string } {
@@ -779,7 +792,7 @@ export class Match {
     const connectedHumans = this.humans().filter((h) => h.connected);
     const needed = connectedHumans.length;
     this.deps.io.to(this.room).emit('match:rematchVotes', { votes: [...this.rematchVotes], needed });
-    const teamsPresent = TEAM_IDS.every((t) => [...this.players.values()].some((p) => p.team === t && (p.isGhost || p.connected)));
+    const teamsPresent = this.teams.filter((t) => [...this.players.values()].some((p) => p.team === t && (p.isGhost || p.connected))).length >= 2;
     if (teamsPresent && connectedHumans.every((h) => this.rematchVotes.has(h.id))) this.deps.hooks.onRematch(this);
     return { ok: true };
   }
@@ -801,7 +814,7 @@ export class Match {
       players: this.publicPlayers(),
       myTeam: p?.team ?? null,
       spectator,
-      ops: { A: visible('A'), B: visible('B') },
+      ops: teamRecord(visible),
       photoUrl: cur && photoVisible ? this.deps.photos.issueToken(cur.photo.image, playerId) : null,
       rounds: [...this.history],
       lastShowdown: this.phase === 'SHOWDOWN' ? this.lastShowdown : null,

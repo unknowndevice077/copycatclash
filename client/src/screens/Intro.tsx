@@ -4,6 +4,7 @@ import { Avatar, RankBadge, TeamTag } from '../components/Badges';
 import { CountdownBar } from '../components/Timers';
 import { EmoteBar } from '../components/Social';
 import { useCountdown } from '../lib/hooks';
+import { isFfa } from '../lib/sides';
 import { useMatch } from '../store/match';
 import { useSession } from '../store/session';
 import { useSettings } from '../store/settings';
@@ -62,7 +63,7 @@ export function MatchFoundScreen() {
       </motion.h1>
       {rules && (
         <p className="paper px-4 py-2 font-display text-xl">
-          {MODE_PRESETS[rules.mode].label} · {rules.teamSize} · {rules.ranked ? 'Ranked' : rules.custom ? 'Custom' : 'Casual'}
+          {MODE_PRESETS[rules.mode].label} · {isFfa(rules) ? 'Free for all' : rules.teamSize} · {rules.ranked ? 'Ranked' : rules.custom ? 'Custom' : 'Casual'}
           {rules.ghost ? ' · vs Ghost 👻' : ''}
         </p>
       )}
@@ -75,17 +76,44 @@ export function MatchFoundScreen() {
   );
 }
 
+/** Free-for-all line-up: every player is their own side. */
+function FreeForAllLineup() {
+  const players = useMatch((s) => s.players);
+  const me = useSession((s) => s.player?.id);
+  return (
+    <div className="space-y-3">
+      <motion.h2 className="heading text-center text-5xl text-sun sm:text-6xl" initial={{ scale: 0, rotate: -8 }} animate={{ scale: 1, rotate: -2 }} transition={{ type: 'spring' }}>
+        FREE FOR ALL
+      </motion.h2>
+      <ul className="mx-auto grid max-w-3xl gap-2 sm:grid-cols-2">
+        {players.map((p, i) => (
+          <li key={p.id} className="flex items-center gap-2">
+            <TeamTag team={p.team} size="sm" label="" />
+            <div className="min-w-0 flex-1">
+              <PlayerCard p={p} me={p.id === me} delay={0.15 + i * 0.1} />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function TeamIntroScreen() {
   const rules = useMatch((s) => s.rules);
   return (
     <main className="mx-auto flex min-h-full max-w-5xl flex-col justify-center gap-4 px-3 py-6">
-      <div className="grid items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
-        <TeamColumn team="A" />
-        <motion.div className="heading text-center text-7xl text-sun" initial={{ scale: 0, rotate: 180 }} animate={{ scale: 1, rotate: 0 }} transition={{ delay: 0.4, type: 'spring' }}>
-          VS
-        </motion.div>
-        <TeamColumn team="B" />
-      </div>
+      {isFfa(rules) ? (
+        <FreeForAllLineup />
+      ) : (
+        <div className="grid items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
+          <TeamColumn team="A" />
+          <motion.div className="heading text-center text-7xl text-sun" initial={{ scale: 0, rotate: 180 }} animate={{ scale: 1, rotate: 0 }} transition={{ delay: 0.4, type: 'spring' }}>
+            VS
+          </motion.div>
+          <TeamColumn team="B" />
+        </div>
+      )}
       {rules && (
         <motion.p className="text-center font-extrabold" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.9 }}>
           First to {rules.roundsToWin} wins · {rules.peekMs / 1000}s peek · {rules.drawMs / 1000}s draw

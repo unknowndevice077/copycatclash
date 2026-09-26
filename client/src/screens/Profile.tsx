@@ -108,7 +108,7 @@ export function ProfileScreen() {
                 {h.thumbnail ? <img src={h.thumbnail} alt="" className="h-12 w-16 rounded-md border-2 border-ink bg-white object-cover" loading="lazy" /> : <span className="h-12 w-16" />}
                 <span className={`chip ${h.result === 'win' ? 'bg-mint' : h.result === 'loss' ? 'bg-coral text-paper' : 'bg-paperdim'}`}>{h.result.toUpperCase()}</span>
                 <span className="flex-1 text-sm font-extrabold">
-                  {MODE_PRESETS[h.mode].label} {h.bucket} · {h.score.A}–{h.score.B} {h.ghost ? '· 👻' : ''} {h.ranked ? '' : '· casual'}
+                  {MODE_PRESETS[h.mode].label} {Object.keys(h.score).length > 2 ? `free for all · you ${h.score[h.team] ?? 0}` : `${h.bucket} · ${h.score.A ?? 0}–${h.score.B ?? 0}`} {h.ghost ? '· 👻' : ''} {h.ranked ? '' : '· casual'}
                 </span>
                 {h.ranked && <span className={`font-display ${h.delta >= 0 ? 'text-mint' : 'text-coral'}`}>{h.delta >= 0 ? `+${h.delta}` : h.delta}</span>}
                 <time className="hidden text-xs font-bold text-muted sm:block" dateTime={new Date(h.endedAt).toISOString()}>

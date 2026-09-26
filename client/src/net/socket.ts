@@ -1,7 +1,8 @@
 import { io, type Socket } from 'socket.io-client';
-import { MODE_PRESETS, type Ack, type ClientToServerEvents, type MatchPhase, type ServerToClientEvents } from '@ccc/shared';
+import { MODE_PRESETS, type Ack, type ClientToServerEvents, type MatchPhase, type ServerToClientEvents, type TeamId, type TeamRoundResult } from '@ccc/shared';
 import { sfx, vibrate } from '../audio/sfx';
 import { drawSession } from '../canvas/drawSession';
+import { sideName } from '../lib/sides';
 import { useLobby } from '../store/lobby';
 import { useMatch } from '../store/match';
 import { useSession } from '../store/session';
@@ -180,16 +181,17 @@ export function connectSocket(token: string): ClientSocket {
           photoTitle: sd.attribution.title,
           referenceUrl: sd.referenceUrl,
           mirrored: sd.mirrored,
-          images: { A: sd.teams.A.imageUrl, B: sd.teams.B.imageUrl },
-          scores: { A: sd.teams.A.detail.score, B: sd.teams.B.detail.score },
+          images: Object.fromEntries(Object.entries(sd.teams).map(([t, r]) => [t, r.imageUrl])),
+          scores: Object.fromEntries(Object.entries(sd.teams).map(([t, r]) => [t, r.detail.score])),
           winner: sd.winner,
-          estimated: sd.teams.A.detail.estimated || sd.teams.B.detail.estimated,
+          estimated: Object.values(sd.teams).some((r) => r.detail.estimated),
         },
       ],
     });
     const mine = m.myTeam;
-    const verdict = sd.winner === 'draw' ? 'It is a draw.' : mine ? (sd.winner === mine ? 'Your team wins the round!' : 'The other team wins the round.') : '';
-    useUi.getState().announce(`Scores: Team A ${Math.round(sd.teams.A.detail.score)}, Team B ${Math.round(sd.teams.B.detail.score)}. ${verdict}`);
+    const verdict = sd.winner === 'draw' ? 'It is a draw.' : mine ? (sd.winner === mine ? 'You win the round!' : 'Someone else wins the round.') : '';
+    const scores = (Object.entries(sd.teams) as Array<[TeamId, TeamRoundResult]>).map(([t, r]) => `${sideName(t, m.rules, m.players, mine)} ${Math.round(r.detail.score)}`);
+    useUi.getState().announce(`Scores: ${scores.join(', ')}. ${verdict}`);
   });
 
   s.on('match:result', (result) => useMatch.getState().set({ result, rounds: result.rounds }));

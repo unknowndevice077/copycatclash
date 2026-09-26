@@ -1,0 +1,30 @@
+{
+  "name": "copy-cat-clash",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Real-time PvP drawing game: recreate the reference photo, closest drawing wins.",
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n server,client -c magenta,cyan \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client && npm run build -w server",
+    "start": "npm run start -w server",
+    "typecheck": "npm run typecheck -w shared && npm run typecheck -w server && npm run typecheck -w client",
+    "db:migrate": "npm run db:migrate -w server",
+    "photos:fetch": "npm run photos:fetch -w server",
+    "photos:seed": "npm run photos:seed -w server",
+    "photos:unsplash": "npm run photos:unsplash -w server",
+    "test:scoring": "npm run test:scoring -w server",
+    "photos:simple": "npm run photos:simple -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

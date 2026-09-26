@@ -1,0 +1,24 @@
+services:
+  app:
+    build: .
+    image: copy-cat-clash:latest
+    ports:
+      - "3001:3001"
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      TRUST_PROXY: "false"
+      # Behind plain http locally; set COOKIE_SECURE=true when served over https.
+      COOKIE_SECURE: "false"
+    volumes:
+      - ccc-data:/app/server/data
+    restart: unless-stopped
+
+  # Optional: enable for multi-instance setups (then set REDIS_URL=redis://redis:6379 in .env).
+  redis:
+    image: redis:7-alpine
+    profiles: ["scale"]
+    restart: unless-stopped
+
+volumes:
+  ccc-data:

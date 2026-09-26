@@ -1,12 +1,13 @@
 # Render Blueprint: https://render.com/docs/blueprint-spec
-# One Docker web service that serves the API, Socket.IO and the built client,
-# with a persistent disk for the SQLite database and archived round images.
+# One Docker web service that serves the API, Socket.IO and the built client.
+# Free plan: no persistent disk, so the SQLite data is temporary. For permanent data, switch to
+# `plan: starter` and add a `disk:` mounted at /app/server/data.
 services:
   - type: web
     name: copy-cat-clash
     runtime: docker
     dockerfilePath: ./Dockerfile
-    plan: starter            # Persistent disks need a paid instance; see README "Deploy to Render".
+    plan: free               # No card needed. Data (players, ranks, history) resets when the service restarts or sleeps.
     region: oregon
     numInstances: 1          # Live matches are in memory; scale out only with Redis (see README).
     healthCheckPath: /healthz
@@ -30,7 +31,3 @@ services:
         sync: false          # e.g. https://copy-cat-clash.onrender.com (same-origin play works without it)
       - key: MAX_CONN_PER_IP
         value: "12"
-    disk:
-      name: ccc-data
-      mountPath: /app/server/data
-      sizeGB: 1

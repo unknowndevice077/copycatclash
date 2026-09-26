@@ -76,14 +76,13 @@ The repo includes a `render.yaml` Blueprint and a production `Dockerfile`. One w
 1. Push the repo to GitHub or GitLab.
 2. In Render, go to **New → Blueprint** and pick the repo. Render reads `render.yaml` and creates:
    - a Docker web service with the health check at `/healthz`
-   - a **1 GB persistent disk** at `/app/server/data` for SQLite and round images
    - a generated `JWT_SECRET`
 3. When prompted, enter `ANTHROPIC_API_KEY`. `UNSPLASH_ACCESS_KEY` and `CORS_ORIGIN` are optional.
 4. Deploy. The game is live at `https://<service-name>.onrender.com`.
 
 Notes:
 
-- **Plan:** persistent disks require a paid instance, which is why the Blueprint uses `starter`. The free plan works if you delete the `disk:` block, but the database and history reset on every deploy or restart. Free services also sleep when idle, which drops live matches.
+- **Plan:** the Blueprint uses the **free** plan (no card needed). Free services have no persistent disk, so players, ranks and history reset whenever the service restarts, redeploys or sleeps. It sleeps after about 15 minutes idle, and the first visit after that takes around a minute to wake it. For permanent data, set `plan: starter` and add a `disk:` (1 GB at `/app/server/data`).
 - **Instances:** keep `numInstances: 1`. Live matches are held in memory (see Scaling).
 - WebSockets work on Render out of the box. `TRUST_PROXY=true` is already set.
 

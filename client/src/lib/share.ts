@@ -82,7 +82,7 @@ export async function buildShareImage(r: RoundSummary, finalScore: { A: number; 
 
 /** Web Share API with files when available, otherwise a download. */
 export async function shareOrDownload(blob: Blob): Promise<'shared' | 'downloaded'> {
-  const file = new File([blob], 'copy-cat-clash.png', { type: 'image/png' });
+  const file = new File([blob], 'copycatclash.png', { type: 'image/png' });
   const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
   if (nav.share && nav.canShare?.({ files: [file] })) {
     try {
@@ -95,7 +95,7 @@ export async function shareOrDownload(blob: Blob): Promise<'shared' | 'downloade
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'copy-cat-clash.png';
+  a.download = 'copycatclash.png';
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
   return 'downloaded';

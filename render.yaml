@@ -4,7 +4,7 @@
 # `plan: starter` and add a `disk:` mounted at /app/server/data.
 services:
   - type: web
-    name: copy-cat-clash
+    name: copycatclash
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: free               # No card needed. Data (players, ranks, history) resets when the service restarts or sleeps.
@@ -28,6 +28,6 @@ services:
       - key: UNSPLASH_ACCESS_KEY
         sync: false
       - key: CORS_ORIGIN
-        sync: false          # e.g. https://copy-cat-clash.onrender.com (same-origin play works without it)
+        sync: false          # e.g. https://copycatclash.onrender.com (same-origin play works without it)
       - key: MAX_CONN_PER_IP
         value: "12"

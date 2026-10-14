@@ -8,6 +8,7 @@ import { useMatch } from '../store/match';
 import { useSession } from '../store/session';
 import { useUi } from '../store/ui';
 import { api } from './api';
+import { noteError } from '../lib/errorLog';
 import { recordSample, resetClock } from './clock';
 
 export type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -78,11 +79,13 @@ export function connectSocket(token: string): ClientSocket {
   });
 
   s.on('disconnect', (reason) => {
+    if (reason !== 'io client disconnect') noteError(`Disconnected: ${reason}`);
     useUi.getState().setConn(reason === 'io client disconnect' ? 'offline' : 'reconnecting');
   });
 
   s.on('connect_error', (err) => {
     const code = (err as Error & { data?: { code?: string } }).data?.code ?? err.message;
+    noteError(`Connection error: ${code}`);
     const setConn = useUi.getState().setConn;
     if (code === 'server_full') setConn('server_full');
     else if (code === 'too_many_connections') setConn('too_many');

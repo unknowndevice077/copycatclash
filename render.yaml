@@ -31,3 +31,9 @@ services:
         sync: false          # e.g. https://copycatclash.onrender.com (same-origin play works without it)
       - key: MAX_CONN_PER_IP
         value: "12"
+      - key: BUG_REPORT_GITHUB_REPO
+        sync: false          # e.g. unknowndevice077/clash-games-feedback (private)
+      - key: BUG_REPORT_GITHUB_TOKEN
+        sync: false          # fine-grained token, Issues: read and write on that repo only
+      - key: BUG_REPORT_DISCORD_WEBHOOK
+        sync: false          # optional

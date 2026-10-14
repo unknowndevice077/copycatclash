@@ -14,6 +14,7 @@ import { useMatch } from '../store/match';
 import { useSession } from '../store/session';
 import { useSettings } from '../store/settings';
 import { useUi } from '../store/ui';
+import { useBugReport } from '../components/BugReportDialog';
 import { AttributionLine } from './Showdown';
 
 const BANNER_CLASS: Record<string, string> = {
@@ -263,6 +264,9 @@ export function ResultScreen() {
         </button>
         <button type="button" className="btn-ghost" onClick={() => void actions.leaveMatch()}>
           🏠 Lobby
+        </button>
+        <button type="button" className="btn-ghost" onClick={() => useBugReport.getState().show()}>
+          🐞 Report a bug
         </button>
       </section>
       <EmoteBar />

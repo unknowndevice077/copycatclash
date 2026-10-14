@@ -69,6 +69,20 @@ See `.env.example` for the full list. The important ones:
 | `REDIS_URL` | none | Shared queues plus the Socket.IO Redis adapter (see Scaling) |
 | `DATA_DIR` | `./data` | SQLite database and archived round images |
 | `SCORING_SIMULATE_AI_FAILURE` | `false` | Forces the fallback judge (for testing) |
+| `BUG_REPORT_GITHUB_REPO` | none | `owner/repo` that receives in-game bug reports as issues (keep it private) |
+| `BUG_REPORT_GITHUB_TOKEN` | none | Fine-grained token with Issues: read and write on that repo only |
+| `BUG_REPORT_DISCORD_WEBHOOK` | none | Discord channel webhook for bug reports |
+
+## Bug reports
+
+Players can send a bug report from inside the game (⚙️ Settings, the 🐞 button in a room, and the match results screen). The form asks what happened, an optional email or Discord handle for a reply, and attaches the room code, game phase, player count, screen size, browser and the last few errors the page logged. Players see exactly what's attached before sending. No IP address is forwarded.
+
+The free Render plan keeps no files between restarts, so reports aren't stored on the server. Each one is written to the server log and forwarded to whichever of these you configure:
+
+- **GitHub issues:** set `BUG_REPORT_GITHUB_REPO` (`owner/repo`) and `BUG_REPORT_GITHUB_TOKEN`, a [fine-grained token](https://github.com/settings/personal-access-tokens/new) with **Issues: Read and write** on that one repository. Use a **private** repo, since players may leave contact details. Issues are labelled `bug report` plus the category.
+- **Discord:** set `BUG_REPORT_DISCORD_WEBHOOK` to a channel webhook URL (Channel settings → Integrations → Webhooks). Mentions are disabled.
+
+With neither set, the full report is still in the server log. Limits: 5 reports per IP per 15 minutes and 60 per hour overall; a hidden honeypot field drops bot submissions.
 
 ## Deploy to Render
 

@@ -8,6 +8,7 @@ import { ZodError } from 'zod';
 import { config } from '../config';
 import type { AppContext } from '../context';
 import { errMessage, log } from '../util/logger';
+import { bugReportRoutes } from './bugReports';
 import { apiLimiter } from './middleware';
 import { authRoutes } from './routes/auth';
 import { gameRoutes } from './routes/game';
@@ -47,6 +48,7 @@ export function createApp(ctx: AppContext): express.Express {
   app.use('/api', apiLimiter);
   app.use('/api/auth', authRoutes(ctx));
   app.use('/api', gameRoutes(ctx));
+  app.use(bugReportRoutes({ game: 'Copy Cat Clash', ...config.bugReports }));
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'Not found' });
   });

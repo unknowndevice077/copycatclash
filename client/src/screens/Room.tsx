@@ -26,6 +26,7 @@ import { actions } from '../net/actions';
 import { api } from '../net/api';
 import { useLobby } from '../store/lobby';
 import { useSession } from '../store/session';
+import { useBugReport } from '../components/BugReportDialog';
 import { useUi } from '../store/ui';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -231,6 +232,9 @@ export function RoomScreen() {
         <div className="flex gap-2">
           <button type="button" className="btn-ghost text-base" onClick={copy}>
             📋 Invite link
+          </button>
+          <button type="button" className="btn-ghost text-base" onClick={() => useBugReport.getState().show()} aria-label="Report a bug">
+            🐞
           </button>
           <button type="button" className="btn-dark text-base" onClick={() => void leave()}>
             Leave

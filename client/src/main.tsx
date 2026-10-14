@@ -2,8 +2,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import './index.css';
+import { installErrorLog } from './lib/errorLog';
 import { disableLongPressMenus } from './lib/touch';
 
+installErrorLog();
 disableLongPressMenus();
 
 const root = document.getElementById('root');

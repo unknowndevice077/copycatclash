@@ -40,6 +40,11 @@ const EnvSchema = z.object({
   REDIS_URL: z.string().optional(),
   MAX_CONN_PER_IP: z.coerce.number().int().default(12),
   MAX_TOTAL_CONNECTIONS: z.coerce.number().int().default(5000),
+
+  BUG_REPORT_GITHUB_REPO: z.string().optional(),
+  BUG_REPORT_GITHUB_TOKEN: z.string().optional(),
+  // Blank (as in .env.example) means "not set" rather than an invalid URL.
+  BUG_REPORT_DISCORD_WEBHOOK: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
 });
 
 const env = EnvSchema.parse(process.env);
@@ -90,6 +95,13 @@ export const config = {
   redisUrl: env.REDIS_URL,
   maxConnPerIp: env.MAX_CONN_PER_IP,
   maxTotalConnections: env.MAX_TOTAL_CONNECTIONS,
+  bugReports: {
+    /** "owner/repo" to file in-game bug reports as issues (best kept private: players may leave contact details). */
+    githubRepo: env.BUG_REPORT_GITHUB_REPO?.trim() || undefined,
+    /** Fine-grained token with Issues: read and write on that repo only. */
+    githubToken: env.BUG_REPORT_GITHUB_TOKEN?.trim() || undefined,
+    discordWebhook: env.BUG_REPORT_DISCORD_WEBHOOK?.trim() || undefined,
+  },
 } as const;
 
 export type AppConfig = typeof config;

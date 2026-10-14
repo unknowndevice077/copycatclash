@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { AVATAR_FRAMES, BANNER_STYLES, CURSOR_SKINS, SHOWDOWN_EFFECTS, unlocked, type Cosmetic } from '../lib/cosmetics';
 import { useSession } from '../store/session';
 import { useSettings, type SettingsState } from '../store/settings';
+import { useBugReport } from './BugReportDialog';
 import { Modal } from './Modal';
 
 function Toggle({ label, checked, onChange, hint }: { label: string; checked: boolean; onChange: (v: boolean) => void; hint?: string }) {
@@ -72,6 +73,18 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
           <CosmeticPicker title="Avatar frame" list={AVATAR_FRAMES} value={s.avatarFrame} level={level} onPick={(id) => set({ avatarFrame: id })} />
           <CosmeticPicker title="Winner banner" list={BANNER_STYLES} value={s.bannerStyle} level={level} onPick={(id) => set({ bannerStyle: id })} />
           <CosmeticPicker title="Showdown effect" list={SHOWDOWN_EFFECTS} value={s.showdownEffect} level={level} onPick={(id) => set({ showdownEffect: id })} />
+        </section>
+        <section className="sm:col-span-2">
+          <button
+            type="button"
+            className="btn-ghost w-full text-base"
+            onClick={() => {
+              onClose();
+              useBugReport.getState().show();
+            }}
+          >
+            🐞 Report a bug
+          </button>
         </section>
       </div>
     </Modal>

@@ -15,6 +15,7 @@ import { useLobby } from './store/lobby';
 import { useMatch } from './store/match';
 import { useSession } from './store/session';
 import { useSettings } from './store/settings';
+import { BugReportDialog } from './components/BugReportDialog';
 import { useUi } from './store/ui';
 
 function PartyInvite() {
@@ -106,6 +107,7 @@ export function App() {
         )}
         {status === 'ready' && <Shell />}
         <Toasts />
+        <BugReportDialog />
         <ConnectionOverlay />
         <LiveAnnouncer />
       </BrowserRouter>

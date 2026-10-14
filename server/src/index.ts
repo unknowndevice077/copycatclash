@@ -12,7 +12,15 @@ import { newId } from './util/ids';
 import { errMessage, log } from './util/logger';
 
 async function main(): Promise<void> {
-  const httpServer = createServer();
+  // Express must be the server's request handler *before* Socket.IO attaches: Socket.IO only keeps
+  // /socket.io/ requests away from the handlers that exist at attach time. Adding Express afterwards
+  // let it answer HTTP long-polling requests too (with index.html), so Socket.IO's own reply then
+  // threw ERR_HTTP_HEADERS_SENT and crashed the process. The app needs `io`, so delegate lazily.
+  let app: ReturnType<typeof createApp> | null = null;
+  const httpServer = createServer((req, res) => {
+    if (app) app(req, res);
+    else res.writeHead(503).end();
+  });
   const io = createIo(httpServer);
   const instanceId = newId('i_');
 
@@ -32,8 +40,7 @@ async function main(): Promise<void> {
     log.warn('photo library is empty. Run `npm run photos:fetch` before playing.');
   }
 
-  const app = createApp(ctx);
-  httpServer.on('request', app);
+  app = createApp(ctx);
   attachSocketLayer(io, ctx);
   ctx.matchmaker.start();
 

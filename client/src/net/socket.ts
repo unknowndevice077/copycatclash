@@ -20,11 +20,27 @@ export function getSocket(): ClientSocket | null {
   return socket;
 }
 
+/**
+ * The free host sleeps when idle and restarts on every deploy, so a click often lands while the
+ * socket is reconnecting. Wait for it to come back (the socket object may be replaced if the
+ * session had to be renewed) instead of failing the action straight away.
+ */
+const RECONNECT_WAIT_MS = 15_000;
+
+async function connectedSocket(): Promise<ClientSocket | null> {
+  const deadline = Date.now() + RECONNECT_WAIT_MS;
+  while (Date.now() < deadline) {
+    if (socket?.connected) return socket;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return socket?.connected ? socket : null;
+}
+
 /** Wraps an ack-style emit in a promise with a timeout. */
-export function call<T>(send: (s: ClientSocket, cb: (res: Ack<T>) => void) => void, timeoutMs = 8000): Promise<Ack<T>> {
+export async function call<T>(send: (s: ClientSocket, cb: (res: Ack<T>) => void) => void, timeoutMs = 8000): Promise<Ack<T>> {
+  const s = await connectedSocket();
+  if (!s) return { ok: false, error: "Can't reach the game server right now. It may be waking up, so try again in a few seconds." };
   return new Promise((resolve) => {
-    const s = socket;
-    if (!s?.connected) return resolve({ ok: false, error: 'Not connected to the server' });
     const timer = setTimeout(() => resolve({ ok: false, error: 'The server did not answer in time' }), timeoutMs);
     send(s, (res) => {
       clearTimeout(timer);
@@ -67,7 +83,15 @@ export function connectSocket(token: string): ClientSocket {
   if (socket) return socket;
   const ui = useUi.getState();
   ui.setConn('connecting');
-  const s: ClientSocket = io({ auth: { token }, transports: ['websocket', 'polling'], reconnectionDelay: 800, reconnectionDelayMax: 4000 });
+  // WebSocket first for latency; tryAllTransports falls back to HTTP polling on networks that
+  // block WebSockets (some school, office and mobile networks) instead of never connecting.
+  const s: ClientSocket = io({
+    auth: { token },
+    transports: ['websocket', 'polling'],
+    tryAllTransports: true,
+    reconnectionDelay: 800,
+    reconnectionDelayMax: 4000,
+  });
   socket = s;
 
   s.on('connect', () => {
